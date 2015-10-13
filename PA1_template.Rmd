@@ -5,13 +5,67 @@ output:
     keep_md: true
 ---
 
-
 ## Loading and preprocessing the data
 
+First, unzip the data to a temporary dir and read the csv into R as a data frame called `activity`. Clean up the tempfiles when we're done with them.
 
+```{r}
+temp <- tempdir()
+unzip('activity.zip', exdir = temp)
+activity <- read.csv(file.path(temp, 'activity.csv'))
+unlink(temp)
+```
+
+Load in `dplyr`, `lubridate` and `ggplot2` packages--we'll need them shortly (and throughout the rest of the analysis).
+
+```{r message=FALSE}
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+```
+
+We will need more sophisticated date handling later in our analysis, so add column `parsed_date` that has `POSIXct` dates (via `lubridate::ymd`).
+
+```{r}
+activity <- mutate(activity, parsed_date = ymd(date))
+```
+
+At this point, our dataset is ready to go. Here's the basic structure:
+
+```{r}
+str(activity)
+```
 
 ## What is mean total number of steps taken per day?
 
+First, group the data by day, and use `dplyr`'s `summarize` function to get the total per day. Remove missing values when we call `sum`.
+
+```{r}
+steps_per_day <- activity %>%
+    group_by(parsed_date) %>%
+    summarize(total_steps = sum(steps, na.rm = TRUE))
+head(steps_per_day)
+```
+
+Plot a histogram of steps per day.
+
+```{r message=FALSE}
+qplot(total_steps, data=steps_per_day, geom='histogram') +
+    labs(title = 'Total steps per day distribution',
+         x = '# steps/day')
+```
+
+Now calculate the mean number of steps per day...
+
+```{r}
+mean(steps_per_day$total_steps)
+```
+
+...and the median.
+
+```{r}
+median(steps_per_day$total_steps)
+```
 
 
 ## What is the average daily activity pattern?
