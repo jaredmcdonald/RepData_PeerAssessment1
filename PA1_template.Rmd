@@ -60,16 +60,10 @@ qplot(total_steps, data=steps_per_day, geom='histogram') +
          x = '# steps/day')
 ```
 
-Now calculate the mean number of steps per day...
+Get the mean and median steps per day with `summary`.
 
 ```{r}
-mean(steps_per_day$total_steps)
-```
-
-...and the median.
-
-```{r}
-median(steps_per_day$total_steps)
+summary(steps_per_day$total_steps)
 ```
 
 ## What is the average daily activity pattern?
@@ -126,7 +120,8 @@ na_inputted_activity <- activity %>%
     # fill in missing values
     mutate(steps = ifelse(is.na(steps),
                           interval_means_vec[as.character(interval)],
-                          steps))
+                          steps)) %>%
+    ungroup() # finally, ungroup rows from `rowwise` call
 ```
 
 Let's confirm that it worked:
@@ -161,14 +156,31 @@ They are the same!
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
-Our dataset has weekdays in them (numbers 1-7, corresponding to Sunday through Saturday), so we need to start by subsetting the data:
+Our dataset has weekdays in them (1-7, corresponding to Sunday through Saturday). Add a column with a two-level factor variable--either `'weekend'` or `'weekday'`.
 
 ```{r}
-weekend_data <- filter(na_inputted_activity, weekday == 1 | weekday == 7)
-weekday_data <- filter(na_inputted_activity, weekday != 1 & weekday != 7)
+na_inputted_activity <- na_inputted_activity %>%
+    mutate(type_of_day = as.factor(ifelse(weekday %in% c(1, 7),
+                                          'weekend', 'weekday')))
 ```
 
-Now, in the same way we did previously, group by interval, and summarize the mean
+Group data and take the mean, as we did earlier, except this time, also group by type of day.
 
+```{r}
+na_inputted_interval_means <- na_inputted_activity %>%
+    group_by(interval, type_of_day) %>%
+    summarize(average_steps = mean(steps))
 ```
+
+Finally, create a two-panel plot plotting average steps per interval on weekends and weekdays.
+
+```{r}
+ggplot(data = na_inputted_interval_means,
+      aes(x = interval, y = average_steps)) +
+    facet_wrap(~type_of_day, nrow = 2, ncol = 1) +
+    geom_line() +
+    labs(title = 'Average Steps per 5-Minute Interval: Weekday vs. Weekend',
+         x = '5-minute interval (id)',
+         y = 'mean steps (#)')
 ```
+
