@@ -30,6 +30,12 @@ We will need more sophisticated date handling later in our analysis, so add colu
 activity <- mutate(activity, parsed_date = ymd(date))
 ```
 
+Additionally, we need to know the weekday, so add a `weekday` column:
+
+```{r}
+activity <- mutate(activity, weekday = wday(parsed_date))
+```
+
 At this point, our dataset is ready to go. Here's the basic structure:
 
 ```{r}
@@ -66,13 +72,12 @@ mean(steps_per_day$total_steps)
 median(steps_per_day$total_steps)
 ```
 
-
 ## What is the average daily activity pattern?
 
 Group the data by the 5-minute interval, and calculate the mean of each interval's `steps` (averaging across all days). Remove missing values in the call to `mean`.
 
 ```{r}
-interval_sums <- activity %>%
+interval_means <- activity %>%
     group_by(interval) %>%
     summarize(average_steps = mean(steps, na.rm = TRUE))
 ```
@@ -80,7 +85,7 @@ interval_sums <- activity %>%
 Next, plot a time-series graph of our summarized data.
 
 ```{r}
-ggplot(data = interval_sums,
+ggplot(data = interval_means,
       aes(x = interval, y = average_steps)) +
     geom_line() +
     labs(title = 'Average Steps per 5-Minute Interval',
@@ -91,11 +96,79 @@ ggplot(data = interval_sums,
 Next, calculate the interval with the maximum average steps by filtering down to the row that contains the maximum value for `average_steps`. The result is a one-row data frame with the interval id as the first column (`interval`) and its average step count (`average_steps`) as the second.
 
 ```{r}
-filter(interval_sums, average_steps == max(average_steps))
+filter(interval_means, average_steps == max(average_steps))
 ```
 
-## Imputing missing values
+## Inputing missing values
 
+There are a number of missing values in the `steps` column:
 
+```{r}
+nrow(filter(activity, is.na(steps)))
+```
+
+This could introduce substantial bias into our analysis, so let's fill them in with the average across all days of that 5-minute interval--this way, we'll get a value that makes sense for that time of day. We already have the 5-minute interval averages in the data frame `interval_means`, so let's use that to fill in rows with missing values with the corresponding `interval`.
+
+First, let's get `interval_means` in a more friendly format for quicker lookup--a named vector.
+
+```{r}
+interval_means_vec <- interval_means$average_steps
+names(interval_means_vec) <- interval_means$interval
+```
+
+Now, use `dplyr`'s `rowwise` and `mutate` to produce a new data frame with the missing values filled in. (Note that the names for `interval_means_vec` have been coerced to class `character`, so we'll need to convert keys from `numeric` when we do our lookup in `mutate`.)
+
+```{r}
+na_inputted_activity <- activity %>%
+    rowwise() %>%
+    # convert from int to num, since our averages aren't integers
+    mutate(steps = as.numeric(steps)) %>%
+    # fill in missing values
+    mutate(steps = ifelse(is.na(steps),
+                          interval_means_vec[as.character(interval)],
+                          steps))
+```
+
+Let's confirm that it worked:
+
+```{r}
+nrow(filter(na_inputted_activity, is.na(steps)))
+```
+
+To plot a histogram and calculate the mean and median of the new dataset, we need to group it by day and take the sum of `steps`.
+
+```{r warning=FALSE}
+steps_per_day_na_inputted <- na_inputted_activity %>%
+    group_by(parsed_date) %>%
+    summarize(total_steps = sum(steps, na.rm = TRUE))
+```
+
+Plot a histogram of the grouped data:
+
+```{r message=FALSE}
+qplot(total_steps, data=steps_per_day_na_inputted, geom='histogram') +
+    labs(title = 'Total steps per day distribution\n(missing values substituted for 5-min interval average)',
+         x = '# steps/day')
+```
+
+Output summary statistics about `total_steps`, which includes the mean and the median:
+
+```{r}
+summary(steps_per_day_na_inputted$total_steps)
+```
+
+They are the same!
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Our dataset has weekdays in them (numbers 1-7, corresponding to Sunday through Saturday), so we need to start by subsetting the data:
+
+```{r}
+weekend_data <- filter(na_inputted_activity, weekday == 1 | weekday == 7)
+weekday_data <- filter(na_inputted_activity, weekday != 1 & weekday != 7)
+```
+
+Now, in the same way we did previously, group by interval, and summarize the mean
+
+```
+```
